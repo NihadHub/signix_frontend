@@ -80,13 +80,8 @@ export default function SignPage() {
           <div style={{ background: '#eff6ff', borderRadius: 8, padding: 14, marginBottom: 20 }}>
             <p style={{ fontWeight: 500, margin: 0 }}>{signingRequest.documentTitle}</p>
           </div>
-          <div style={{
-            minHeight: 200, border: '1px solid var(--border)', borderRadius: 8,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-muted)', marginBottom: 20,
-          }}>
-            Aperçu du document PDF
-          </div>
+          <iframe src={`http://localhost:8080/sign/${token}/file`} title="Document PDF" 
+          style={{ width: '100%', minHeight: 300, border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }} />
           <button onClick={() => setStep('sign')}>Signer le document</button>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12 }}>
             En signant, vous acceptez le contenu du document.
@@ -101,19 +96,15 @@ export default function SignPage() {
             Lisez le document et signez ci-dessous.
           </p>
 
-          <div style={{ display: 'flex', gap: 20 }}>
-            <div style={{
-              flex: 1, minHeight: 200, border: '1px solid var(--border)', borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
-            }}>
-              Aperçu du document PDF
-            </div>
-
-            <div style={{ width: 260 }}>
-              <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 8px' }}>Votre signature</p>
+          <div style={{ display: 'flex', gap: 20 }} > 
+            <div style={{ flex: 1 }}> <iframe src={`http://localhost:8080/sign/${token}/file`} title="Document PDF"
+             style={{ width: '100%', minHeight: 300, border: '1px solid var(--border)', borderRadius: 8 }} />
+              </div> 
+          <div style={{ width: 260 }}>
+             <p style={{ fontSize: 13, fontWeight: 500, margin: '0 0 8px' }} > Votre signature </p>
               <SignatureCanvas onSignatureChange={setSignature} />
-            </div>
-          </div>
+               </div> 
+               </div>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '20px 0', fontWeight: 400 }}>
             <input
