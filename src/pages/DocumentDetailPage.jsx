@@ -12,6 +12,7 @@ export default function DocumentDetailPage() {
   const [signerEmail, setSignerEmail] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState(null)
 
   const loadDocument = () => {
     api.get(`/documents?page=0&size=100`)
@@ -23,13 +24,35 @@ export default function DocumentDetailPage() {
 
   useEffect(() => {
     loadDocument()
+
     api.get(`/documents/${id}/history?page=0&size=20`)
       .then((res) => setHistory(res.data.content))
+
+    api.get(`/documents/${id}/download`, {
+      responseType: 'blob'
+    })
+      .then((res) => {
+        const url = URL.createObjectURL(res.data)
+        setPdfUrl(url)
+      })
+      .catch((err) => {
+        console.error('Erreur lors du chargement du PDF :', err)
+      })
+
+    return () => {
+      setPdfUrl((currentUrl) => {
+        if (currentUrl) {
+          URL.revokeObjectURL(currentUrl)
+        }
+        return null
+      })
+    }
   }, [id])
 
   const handleSend = async (e) => {
     e.preventDefault()
     setError('')
+
     try {
       await api.post(`/documents/${id}/send`, { signerEmail })
       loadDocument()
@@ -39,13 +62,21 @@ export default function DocumentDetailPage() {
   }
 
   const handleDownload = async () => {
-    const res = await api.get(`/documents/${id}/download`, { responseType: 'blob' })
+    const res = await api.get(`/documents/${id}/download`, {
+      responseType: 'blob'
+    })
+
     const url = window.URL.createObjectURL(new Blob([res.data]))
     const link = window.document.createElement('a')
+
     link.href = url
     link.setAttribute('download', 'document.pdf')
+
     window.document.body.appendChild(link)
     link.click()
+
+    link.remove()
+    window.URL.revokeObjectURL(url)
   }
 
   const handleDelete = async () => {
@@ -55,12 +86,17 @@ export default function DocumentDetailPage() {
 
   const handleCopyLink = () => {
     const link = `${window.location.origin}/sign/${docData.signingToken}`
+
     navigator.clipboard.writeText(link)
+
     setCopied(true)
+
     setTimeout(() => setCopied(false), 2000)
   }
 
-  if (!docData) return <p style={{ padding: 32 }}>Chargement...</p>
+  if (!docData) {
+    return <p style={{ padding: 32 }}>Chargement...</p>
+  }
 
   const actionLabels = {
     DOCUMENT_CREATED: 'Document créé',
@@ -75,80 +111,193 @@ export default function DocumentDetailPage() {
       <Sidebar />
 
       <div style={{ flex: 1, padding: 32, maxWidth: 900 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <button className="secondary" onClick={() => navigate('/')}>← Retour aux documents</button>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16
+          }}
+        >
+          <button
+            className="secondary"
+            onClick={() => navigate('/')}
+          >
+            ← Retour aux documents
+          </button>
+
           <StatusBadge status={docData.status} />
         </div>
 
-        <h2 style={{ margin: '0 0 4px' }}>{docData.title}</h2>
-        <p style={{ color: 'var(--text-muted)', margin: '0 0 24px' }}>
-          {docData.sentAt ? `Envoyé le ${new Date(docData.sentAt).toLocaleString()}` : 'Non encore envoyé'}
+        <h2 style={{ margin: '0 0 4px' }}>
+          {docData.title}
+        </h2>
+
+        <p
+          style={{
+            color: 'var(--text-muted)',
+            margin: '0 0 24px'
+          }}
+        >
+          {docData.sentAt
+            ? `Envoyé le ${new Date(docData.sentAt).toLocaleString()}`
+            : 'Non encore envoyé'}
         </p>
 
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-          <div className="card" style={{ flex: 1, minHeight: 340, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: 48, marginBottom: 8 }}>📄</div>
-              <p>Aperçu du document PDF</p>
-            </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: 20,
+            alignItems: 'flex-start'
+          }}
+        >
+
+          {/* Aperçu PDF */}
+          <div
+            className="card"
+            style={{
+              flex: 1,
+              minHeight: 340,
+              padding: 0,
+              overflow: 'hidden'
+            }}
+          >
+            {pdfUrl ? (
+              <iframe
+                src={pdfUrl}
+                title="Document PDF"
+                style={{
+                  width: '100%',
+                  height: 500,
+                  border: 'none'
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  minHeight: 340,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--text-muted)'
+                }}
+              >
+                <p>Chargement du document...</p>
+              </div>
+            )}
           </div>
 
-          <div style={{ width: 260, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Informations et actions */}
+          <div
+            style={{
+              width: 260,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16
+            }}
+          >
+
             <div className="card">
+
               <p style={detailLabel}>Signataire</p>
-              <p style={detailValue}>{docData.signerEmail || '—'}</p>
+              <p style={detailValue}>
+                {docData.signerEmail || '—'}
+              </p>
 
               <p style={detailLabel}>Statut</p>
-              <p style={detailValue}><StatusBadge status={docData.status} /></p>
+              <p style={detailValue}>
+                <StatusBadge status={docData.status} />
+              </p>
 
               <p style={detailLabel}>Créé le</p>
-              <p style={detailValue}>{new Date(docData.createdAt).toLocaleString()}</p>
+              <p style={detailValue}>
+                {new Date(docData.createdAt).toLocaleString()}
+              </p>
 
               {docData.sentAt && (
                 <>
                   <p style={detailLabel}>Envoyé le</p>
-                  <p style={detailValue}>{new Date(docData.sentAt).toLocaleString()}</p>
+                  <p style={detailValue}>
+                    {new Date(docData.sentAt).toLocaleString()}
+                  </p>
                 </>
               )}
 
               {docData.signedAt && (
                 <>
                   <p style={detailLabel}>Signé le</p>
-                  <p style={detailValue}>{new Date(docData.signedAt).toLocaleString()}</p>
+                  <p style={detailValue}>
+                    {new Date(docData.signedAt).toLocaleString()}
+                  </p>
                 </>
               )}
+
             </div>
 
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              className="card"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8
+              }}
+            >
+
               {docData.status === 'SENT' && docData.signingToken && (
                 <button onClick={handleCopyLink}>
-                  {copied ? 'Lien copié !' : 'Copier le lien de signature'}
+                  {copied
+                    ? 'Lien copié !'
+                    : 'Copier le lien de signature'}
                 </button>
               )}
 
-              {(docData.status === 'SENT' || docData.status === 'SIGNED') && (
-                <button className="secondary" onClick={handleDownload}>
+              {(docData.status === 'SENT' ||
+                docData.status === 'SIGNED') && (
+                <button
+                  className="secondary"
+                  onClick={handleDownload}
+                >
                   Télécharger le PDF
                 </button>
               )}
 
               {docData.status === 'DRAFT' && (
-                <button className="danger" onClick={handleDelete}>
+                <button
+                  className="danger"
+                  onClick={handleDelete}
+                >
                   Supprimer
                 </button>
               )}
+
               {docData.status !== 'DRAFT' && (
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                  La suppression n'est possible que si le document est en brouillon.
+                <p
+                  style={{
+                    fontSize: 12,
+                    color: 'var(--text-muted)',
+                    margin: 0
+                  }}
+                >
+                  La suppression n'est possible que si le document
+                  est en brouillon.
                 </p>
               )}
+
             </div>
+
           </div>
         </div>
 
+        {/* Formulaire d'envoi */}
         {docData.status === 'DRAFT' && (
-          <form onSubmit={handleSend} className="card" style={{ marginTop: 20 }}>
+          <form
+            onSubmit={handleSend}
+            className="card"
+            style={{ marginTop: 20 }}
+          >
             <label>Email du signataire</label>
+
             <input
               type="email"
               value={signerEmail}
@@ -156,36 +305,100 @@ export default function DocumentDetailPage() {
               placeholder="client@email.com"
               required
             />
-            <button type="submit">Envoyer pour signature</button>
-            {error && <p style={{ color: '#dc2626', fontSize: 13 }}>{error}</p>}
+
+            <button type="submit">
+              Envoyer pour signature
+            </button>
+
+            {error && (
+              <p
+                style={{
+                  color: '#dc2626',
+                  fontSize: 13
+                }}
+              >
+                {error}
+              </p>
+            )}
           </form>
         )}
 
-        <h3 style={{ marginTop: 24 }}>Historique</h3>
+        {/* Historique */}
+        <h3 style={{ marginTop: 24 }}>
+          Historique
+        </h3>
+
         <div className="card">
+
           {history.map((log, i) => (
-            <div key={log.timestamp} style={{
-              display: 'flex', gap: 12,
-              paddingBottom: i < history.length - 1 ? 16 : 0,
-              marginBottom: i < history.length - 1 ? 16 : 0,
-              borderBottom: i < history.length - 1 ? '1px solid var(--border)' : 'none',
-            }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', marginTop: 6 }} />
+            <div
+              key={log.timestamp}
+              style={{
+                display: 'flex',
+                gap: 12,
+                paddingBottom:
+                  i < history.length - 1 ? 16 : 0,
+                marginBottom:
+                  i < history.length - 1 ? 16 : 0,
+                borderBottom:
+                  i < history.length - 1
+                    ? '1px solid var(--border)'
+                    : 'none',
+              }}
+            >
+
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: 'var(--primary)',
+                  marginTop: 6
+                }}
+              />
+
               <div>
-                <p style={{ margin: 0, fontWeight: 500, fontSize: 14 }}>
+
+                <p
+                  style={{
+                    margin: 0,
+                    fontWeight: 500,
+                    fontSize: 14
+                  }}
+                >
                   {actionLabels[log.action] || log.action}
                 </p>
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                  par {log.actor} — {new Date(log.timestamp).toLocaleString()}
+
+                <p
+                  style={{
+                    margin: '2px 0 0',
+                    fontSize: 12,
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  par {log.actor} —{' '}
+                  {new Date(log.timestamp).toLocaleString()}
                 </p>
+
               </div>
+
             </div>
           ))}
+
         </div>
+
       </div>
     </div>
   )
 }
 
-const detailLabel = { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 2px' }
-const detailValue = { fontSize: 14, margin: '0 0 12px' }
+const detailLabel = {
+  fontSize: 12,
+  color: 'var(--text-muted)',
+  margin: '0 0 2px'
+}
+
+const detailValue = {
+  fontSize: 14,
+  margin: '0 0 12px'
+}
