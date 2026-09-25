@@ -5,23 +5,47 @@ import { useAuth } from '../context/AuthContext'
 import Sidebar from '../components/Sidebar'
 import StatusBadge from '../components/StatusBadge'
 
+const PAGE_SIZE = 10
+
 export default function DashboardPage() {
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
+  const [title, setTitle] = useState('')
+  const [status, setStatus] = useState('')
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [totalElements, setTotalElements] = useState(0)
   const { user } = useAuth()
 
-  useEffect(() => {
-    api.get('/documents?page=0&size=100')
-      .then((res) => setDocuments(res.data.content))
+  const loadDocuments = () => {
+    setLoading(true)
+    const params = { page, size: PAGE_SIZE }
+    if (title) params.title = title
+    if (status) params.status = status
+
+    api.get('/documents', { params })
+      .then((res) => {
+        setDocuments(res.data.content)
+        setTotalPages(res.data.totalPages)
+        setTotalElements(res.data.totalElements)
+      })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [])
+  }
 
-  const counts = {
-    total: documents.length,
-    DRAFT: documents.filter((d) => d.status === 'DRAFT').length,
-    SENT: documents.filter((d) => d.status === 'SENT').length,
-    SIGNED: documents.filter((d) => d.status === 'SIGNED').length,
+  useEffect(() => {
+    loadDocuments()
+  }, [page, status])
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    setPage(0)
+    loadDocuments()
+  }
+
+  const handleStatusChange = (e) => {
+    setStatus(e.target.value)
+    setPage(0)
   }
 
   return (
@@ -33,7 +57,7 @@ export default function DashboardPage() {
           <div>
             <h2 style={{ margin: 0 }}>Bonjour, {user?.fullName}</h2>
             <p style={{ color: 'var(--text-muted)', margin: '4px 0 0' }}>
-              Voici un aperçu de vos documents
+              {totalElements} document{totalElements !== 1 ? 's' : ''}
             </p>
           </div>
           <Link to="/upload">
@@ -41,17 +65,31 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-          <StatCard label="Total" value={counts.total} />
-          <StatCard label="Brouillons" value={counts.DRAFT} color="var(--draft-text)" />
-          <StatCard label="Envoyés" value={counts.SENT} color="var(--sent-text)" />
-          <StatCard label="Signés" value={counts.SIGNED} color="var(--signed-text)" />
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <form onSubmit={handleSearchSubmit} style={{ flex: 1, display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              placeholder="Rechercher un document..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              style={{ margin: 0 }}
+            />
+            <button type="submit" className="secondary">Rechercher</button>
+          </form>
+
+          <select value={status} onChange={handleStatusChange} style={{ width: 160, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <option value="">Tous les statuts</option>
+            <option value="DRAFT">Brouillon</option>
+            <option value="SENT">Envoyé</option>
+            <option value="SIGNED">Signé</option>
+            <option value="EXPIRED">Expiré</option>
+          </select>
         </div>
 
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {loading && <p style={{ padding: 20 }}>Chargement...</p>}
           {!loading && documents.length === 0 && (
-            <p style={{ padding: 20, color: 'var(--text-muted)' }}>Aucun document pour l'instant.</p>
+            <p style={{ padding: 20, color: 'var(--text-muted)' }}>Aucun document trouvé.</p>
           )}
           {!loading && documents.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -78,16 +116,29 @@ export default function DashboardPage() {
             </table>
           )}
         </div>
-      </div>
-    </div>
-  )
-}
 
-function StatCard({ label, value, color }) {
-  return (
-    <div className="card" style={{ flex: 1, textAlign: 'center' }}>
-      <p style={{ fontSize: 24, fontWeight: 600, margin: 0, color: color || '#1a1a1a' }}>{value}</p>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>{label}</p>
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 20 }}>
+            <button
+              className="secondary"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ← Précédent
+            </button>
+            <span style={{ display: 'flex', alignItems: 'center', fontSize: 14, color: 'var(--text-muted)' }}>
+              Page {page + 1} / {totalPages}
+            </span>
+            <button
+              className="secondary"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Suivant →
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
